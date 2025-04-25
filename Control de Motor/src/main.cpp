@@ -4,17 +4,19 @@
 #define MODBUS_SERIAL Serial2   //pines 16(Rx) y 17(Tx)
 
 //Estos valores se modifican en funcion de la configuracion del master
-#define MODBUS_BAUD 38400
+#define MODBUS_BAUD 9600
 #define MODBUS_CONFIG SERIAL_8N1
 #define MODBUS_UNIT_ID 1
 
-ModbusRTUSlave modbus(MODBUS_SERIAL);
+ModbusRTUSlave modbus(MODBUS_SERIAL, 18);
+
+static unsigned long lastUpdate = 0;
 
 //se crean las listas de coils, discrete inputs, holding registers e input registers
-const uint8_t numCoils = 2;
-const uint8_t numDiscreteInputs = 2;
-const uint8_t numHoldingRegisters = 2;
-const uint8_t numInputRegisters = 2;
+const uint8_t numCoils = 0;
+const uint8_t numDiscreteInputs = 1;
+const uint8_t numHoldingRegisters = 0;
+const uint8_t numInputRegisters = 0;
 
 bool coils[numCoils];
 bool discreteInputs[numDiscreteInputs];
@@ -23,15 +25,24 @@ uint16_t inputRegisters[numInputRegisters];
 
 void setup() {
   //se inicializan los registros y la comunicacion por modbus
+  pinMode(18, OUTPUT);
+  digitalWrite(18, LOW); 
+
   modbus.configureCoils(coils, numCoils);
   modbus.configureDiscreteInputs(discreteInputs, numDiscreteInputs);
   modbus.configureHoldingRegisters(holdingRegisters, numHoldingRegisters);
   modbus.configureInputRegisters(inputRegisters, numInputRegisters);
-
-  MODBUS_SERIAL.begin(MODBUS_BAUD, MODBUS_CONFIG);
+  
+  MODBUS_SERIAL.begin(MODBUS_BAUD, MODBUS_CONFIG, 16, 17);
   modbus.begin(MODBUS_UNIT_ID, MODBUS_BAUD, MODBUS_CONFIG);
+  Serial.begin(9600);
 }
 
 void loop() {
-  modbus.poll(); //cuando se llama a esta funcion, se fija si hay alguna solicitud del master
+
+  if (millis() - lastUpdate > 3000) {
+    discreteInputs[0]= !discreteInputs[0];
+    lastUpdate = millis();
+  }
+  modbus.poll();
 }

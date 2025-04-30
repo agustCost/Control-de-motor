@@ -1,4 +1,4 @@
-//Codigo placa slave Id 2 (Motor)
+//Codigo placa slave Id 1 (Medicion)
 #include <Arduino.h>
 #include <ModbusRTUSlave.h>
 
@@ -7,7 +7,7 @@
 //Estos valores se modifican en funcion de la configuracion del master
 #define MODBUS_BAUD 9600
 #define MODBUS_CONFIG SERIAL_8N1
-#define MODBUS_UNIT_ID 2
+#define MODBUS_UNIT_ID 1
 
 ModbusRTUSlave modbus(MODBUS_SERIAL, 18);
 
@@ -42,5 +42,15 @@ void setup() {
 
 void loop() {
 
+  if (millis() - lastUpdate > 3000) {
+    
+    discreteInputs[0]= !discreteInputs[0];
+    lastUpdate = millis();
+  }
+  if(discreteInputs[0]){
+    digitalWrite(32, HIGH);
+  }else{
+    digitalWrite(32, LOW);
+  }
   modbus.poll();
 }

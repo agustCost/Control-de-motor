@@ -6,6 +6,7 @@
 #define potPin 25
 #define switchPin1 14
 #define switchPin2 13
+#define adcTempPin 34
 
 //Estos valores se modifican en funcion de la configuracion del master
 #define MODBUS_BAUD 9600
@@ -20,7 +21,13 @@ static unsigned long lastUpdate = 0;
 const uint8_t numCoils = 0;
 const uint8_t numDiscreteInputs = 0;
 const uint8_t numHoldingRegisters = 0;
-const uint8_t numInputRegisters = 1;
+const uint8_t numInputRegisters = 2;
+
+// Temperature sensor
+float adcValue = 0;
+float voltaje = 0;
+float temperature = 0;
+float gain = 10.0;
 
 bool coils[numCoils];
 bool discreteInputs[numDiscreteInputs];
@@ -46,7 +53,9 @@ void setup() {
   modbus.configureDiscreteInputs(discreteInputs, numDiscreteInputs);
   modbus.configureHoldingRegisters(holdingRegisters, numHoldingRegisters);
   modbus.configureInputRegisters(inputRegisters, numInputRegisters);
-  
+
+  analogReadResolution(12);
+
   if(sw1 && sw2){
     MODBUS_UNIT_ID = 0;
   }else if (sw2){
@@ -66,6 +75,12 @@ void loop() {
   if (millis() - lastUpdate > 500) {
     inputRegisters[0] = vibracion();
     lastUpdate = millis();
+
+    adcValue = analogRead(adcTempPin);
+    voltaje = ((adcValue / 4095.0)) * 3.3;
+    float sensorVoltaje = voltaje / gain;
+    temperature = sensorVoltaje * 100; // 10mV / C
+    inputRegisters[1] = temperature; // fuxa load
   }
   modbus.poll();
 }

@@ -38,6 +38,13 @@ int vibracion (){
   return (int)(analogRead(potPin) / 40.95);
 }
 
+float temperatureRead(){
+  adcValue = analogRead(adcTempPin);
+  voltaje = ((adcValue / 4095.0)) * 3.3;
+  float sensorVoltaje = voltaje / gain;
+  temperature = sensorVoltaje * 100; // 10mV / C
+}
+
 void setup() {
   //se inicializan los registros y la comunicacion por modbus
   pinMode(potPin, INPUT);
@@ -76,11 +83,7 @@ void loop() {
     inputRegisters[0] = vibracion();
     lastUpdate = millis();
 
-    adcValue = analogRead(adcTempPin);
-    voltaje = ((adcValue / 4095.0)) * 3.3;
-    float sensorVoltaje = voltaje / gain;
-    temperature = sensorVoltaje * 100; // 10mV / C
-    inputRegisters[1] = temperature; // fuxa load
+    inputRegisters[1] = temperatureRead(); // fuxa load
   }
   modbus.poll();
 }

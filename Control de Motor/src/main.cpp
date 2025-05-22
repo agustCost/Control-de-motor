@@ -1,12 +1,12 @@
-//Codigo placa slave Id 1 (Medicion)
+//Codigo placa slave Id 2 (Motor)
 #include <Arduino.h>
 #include <ModbusRTUSlave.h>
 
 #define MODBUS_SERIAL Serial2   //pines 16(Rx) y 17(Tx)
-#define potPin 25
-#define switchPin1 14
-#define switchPin2 13
-#define adcTempPin 34
+#define potPin 4
+#define pwmPin 25
+#define switchPin1 22
+#define switchPin2 23
 
 //Estos valores se modifican en funcion de la configuracion del master
 #define MODBUS_BAUD 9600
@@ -17,32 +17,22 @@ ModbusRTUSlave modbus(MODBUS_SERIAL, 18);
 
 static unsigned long lastUpdate = 0;
 
+int velPot;
+int velPotPrev;
+
 //se crean las listas de coils, discrete inputs, holding registers e input registers
 const uint8_t numCoils = 0;
 const uint8_t numDiscreteInputs = 0;
-const uint8_t numHoldingRegisters = 0;
-const uint8_t numInputRegisters = 2;
-
-// Temperature sensor
-float adcValue = 0;
-float voltaje = 0;
-float temperature = 0;
-float gain = 10.0;
+const uint8_t numHoldingRegisters = 1;
+const uint8_t numInputRegisters = 0;
 
 bool coils[numCoils];
 bool discreteInputs[numDiscreteInputs];
 uint16_t holdingRegisters[numHoldingRegisters];
 uint16_t inputRegisters[numInputRegisters];
 
-int vibracion (){
-  return (int)(analogRead(potPin) / 40.95);
-}
-
-float temperatureRead(){
-  adcValue = analogRead(adcTempPin);
-  voltaje = ((adcValue / 4095.0)) * 3.3;
-  float sensorVoltaje = voltaje / gain;
-  temperature = sensorVoltaje * 100; // 10mV / C
+int velocidad (){
+  return (int)(analogRead(potPin)/40.95);
 }
 
 void setup() {
@@ -50,24 +40,27 @@ void setup() {
   pinMode(potPin, INPUT);
   pinMode(switchPin1, INPUT_PULLUP);
   pinMode(switchPin2, INPUT_PULLUP);
+  pinMode(pwmPin, OUTPUT);
+  pinMode(32, OUTPUT);
   pinMode(18, OUTPUT);
   digitalWrite(18, LOW); 
 
-  bool sw1 = digitalRead(switchPin1);
-  bool sw2 = digitalRead(switchPin2);
+  int sw1 = digitalRead(switchPin1);
+  int sw2 = digitalRead(switchPin2);
+
+  int velPot = velocidad();
+  int velPotPrev = velocidad();
 
   modbus.configureCoils(coils, numCoils);
   modbus.configureDiscreteInputs(discreteInputs, numDiscreteInputs);
   modbus.configureHoldingRegisters(holdingRegisters, numHoldingRegisters);
   modbus.configureInputRegisters(inputRegisters, numInputRegisters);
-
-  analogReadResolution(12);
-
-  if(sw1 && sw2){
+  
+  if(sw1 == 1 && sw2 == 1){
     MODBUS_UNIT_ID = 0;
-  }else if (sw2){
+  }else if (sw2 == 1){
     MODBUS_UNIT_ID = 2;
-  }else if (sw1){
+  }else if (sw1 == 1){
     MODBUS_UNIT_ID = 1;
   }else{
     MODBUS_UNIT_ID = 3;
@@ -79,11 +72,15 @@ void setup() {
 }
 
 void loop() {
-  if (millis() - lastUpdate > 500) {
-    inputRegisters[0] = vibracion();
-    lastUpdate = millis();
+  if (millis() - lastUpdate > 100) {
+    
+    velPot = velocidad();
+    if (velPot != velPotPrev){
+      holdingRegisters[0] = velPot;
+      velPotPrev = velPot;
+    }
 
-    inputRegisters[1] = temperatureRead(); // fuxa load
+    lastUpdate = millis();
   }
   modbus.poll();
 }

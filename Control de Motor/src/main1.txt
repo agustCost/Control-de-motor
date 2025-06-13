@@ -21,6 +21,8 @@ ModbusRTUSlave modbus(MODBUS_SERIAL, 18);
 static unsigned long lastUpdate = 0;
 
 //se crean las listas de coils, discrete inputs, holding registers e input registers
+const uint8_t numDiscreteInputs = 2;
+const uint8_t numHoldingRegisters = 2;
 const uint8_t numInputRegisters = 2;
 
 // Temperature sensor
@@ -29,6 +31,8 @@ float voltaje = 0;
 float temperature = 0;
 float gain = 10.15;
 
+uint16_t holdingRegisters[numHoldingRegisters];
+bool discreteInputs[numDiscreteInputs];
 uint16_t inputRegisters[numInputRegisters];
                                                                     
 int vibracion (){
@@ -54,6 +58,8 @@ void setup() {
   int sw1 = digitalRead(switchPin1);
   int sw2 = digitalRead(switchPin2);
 
+  modbus.configureDiscreteInputs(discreteInputs, numDiscreteInputs);
+  modbus.configureHoldingRegisters(holdingRegisters, numHoldingRegisters);
   modbus.configureInputRegisters(inputRegisters, numInputRegisters);
 
   if(sw1 == 1 && sw2 == 1){
@@ -75,6 +81,17 @@ void loop() {
     inputRegisters[0] = vibracion();
 
     inputRegisters[1] = readTemperature(); // fuxa load
+
+    if(inputRegisters[0] >= holdingRegisters[0]){
+      discreteInputs[0] = true;
+    }else{
+      discreteInputs[0] = false;
+    }
+    if(inputRegisters[1] >= holdingRegisters[1]){
+      discreteInputs[1] = true;
+    }else{
+      discreteInputs[1] = false;
+    }
 
     lastUpdate = millis();
   }

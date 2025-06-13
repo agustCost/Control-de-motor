@@ -21,13 +21,13 @@ ModbusRTUSlave modbus(MODBUS_SERIAL, 18);
 
 static unsigned long lastUpdate = 0;
 
-int velPot;
-int velPotPrev;
+int potPrev = 0;
 int pulseCount;
 int pulsePrev = 1;
 int pulseRead;
 float samplingPeriod = 0.1;
 float speed;
+int pwm = 0;
 
 const float ppr = 823.1;  //considering gearbox
 
@@ -39,8 +39,12 @@ const uint8_t numInputRegisters = 1;
 uint16_t holdingRegisters[numHoldingRegisters];
 uint16_t inputRegisters[numInputRegisters];
 
-int velocidad (){
-  return (int)(analogRead(potPin)*127/4095);
+void velocidad (){
+ int pot = analogRead(potPin);
+  if (pot < potPrev-10 || pot > potPrev+10){
+    holdingRegisters[0] = pot*100/4095;
+    potPrev = pot;
+  }
 }
 
 void setup() {
@@ -59,9 +63,6 @@ void setup() {
 
   int sw1 = digitalRead(switchPin1);
   int sw2 = digitalRead(switchPin2);
-
-  int velPot = velocidad();
-  int velPotPrev = velocidad();
 
   modbus.configureHoldingRegisters(holdingRegisters, numHoldingRegisters);
   modbus.configureInputRegisters(inputRegisters, numInputRegisters);
@@ -94,22 +95,29 @@ void loop() {
 
   ///////////////////////////////
 
-  if (millis() - lastUpdate > 1000) {
+  if (millis() - lastUpdate > 500) {
     
-    inputRegisters[0] = (pulseCount/ppr)*60;
+    inputRegisters[0] = (pulseCount/ppr)*120;
     pulseCount = 0;
+    
+    velocidad();
+  
+    int diff = holdingRegisters[0] - inputRegisters[0];
 
-    velPot = velocidad();
-    if (velPot != velPotPrev){
-      holdingRegisters[0] = velPot;
-      velPotPrev = velPot;
+    pwm += diff*255/100;
+
+    if(pwm > 255){
+      pwm = 255;
+    }else if(pwm < 0){
+      pwm = 0;
+    }
+    if(holdingRegisters[0] == 0){
+      pwm = 0;
     }
 
-    //analogWrite(pwmPin, holdingRegisters[0]);
-    ledcWrite(0, holdingRegisters[0]);
+    ledcWrite(0, pwm);
 
     lastUpdate = millis();
-    
   }
 
   modbus.poll();

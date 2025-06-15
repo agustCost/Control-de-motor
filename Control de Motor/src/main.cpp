@@ -38,7 +38,7 @@ int vibration (){
   float avgVar = vibrationSum/sampleCount;
   vibrationSum = 0;
   sampleCount = 0;
-  return (int)(avgVar*200/4095);
+  return (int)(avgVar*100/2048);
 }
 
 float gain = 10.15;     //Ganancia del sensor de temperatura  

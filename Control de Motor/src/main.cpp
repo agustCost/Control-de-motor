@@ -41,7 +41,7 @@ int vibration (){
   return (int)(avgVar*100/2048);
 }
 
-float gain = 10.15;     //Ganancia del sensor de temperatura  
+float gain = 10.15;     //Ganancia del amplificador del sensor de temperatura  
 
 //Medida de temperatura
 float readTemperature(){
@@ -54,6 +54,7 @@ float readTemperature(){
 
 void setup() {
   //Inicializacion de los pines
+  pinMode(adcTempPin, INPUT);
   pinMode(potPin, INPUT);
   pinMode(switchPin1, INPUT_PULLUP);
   pinMode(switchPin2, INPUT_PULLUP);

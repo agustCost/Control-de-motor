@@ -52,7 +52,6 @@ void setup() {
   pinMode(switchPin2, INPUT_PULLUP);
   pinMode(encoderPin, INPUT_PULLUP);
   pinMode(pwmPin, OUTPUT);
-  pinMode(32, OUTPUT);
   pinMode(18, OUTPUT);
   digitalWrite(18, LOW); 
 

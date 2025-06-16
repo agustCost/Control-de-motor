@@ -1,4 +1,4 @@
-//Codigo placa slave Id 1 (Medicion)
+//Codigo placa slave Id 2 (Motor)
 #include <Arduino.h>
 #include <ModbusRTUSlave.h>
 #include <ModbusADU.h>
@@ -7,15 +7,20 @@
 
 //Definicion de pines y variables globales
 #define MODBUS_SERIAL Serial2   //pines 16(Rx) y 17(Tx)
-#define potPin 25
-#define switchPin1 14
-#define switchPin2 13
-#define adcTempPin 34
+#define potPin 4
+#define pwmPin 25
+#define switchPin1 22
+#define switchPin2 23
+#define encoderPin 14
 
-int vibrationSum = 0;
-int sampleCount = 0;
-static unsigned long lastPotRead = 0;
 static unsigned long lastUpdate = 0;
+int potPrev = 0;
+int pulseCount = 0;
+int pulsePrev = 1;
+int pulseRead;
+float samplingPeriod = 0.5;
+int pwm = 0;
+const float ppr = 823.1;  //Pulsos del encoder por revolucion
 
 //Parametros de comunicacion serial
 #define MODBUS_BAUD 38400
@@ -24,52 +29,44 @@ static unsigned long lastUpdate = 0;
 //Creacion del objeto modbus
 ModbusRTUSlave modbus(MODBUS_SERIAL, 18);
 
-//Creacion de las listas de discrete inputs, holding registers e input registers
-const uint8_t numDiscreteInputs = 2;
-const uint8_t numHoldingRegisters = 2;
-const uint8_t numInputRegisters = 2;
+//Creacion de las listas de holding registers e input registers
+const uint8_t numHoldingRegisters = 1;
+const uint8_t numInputRegisters = 1;
 
 uint16_t holdingRegisters[numHoldingRegisters];
-bool discreteInputs[numDiscreteInputs];
 uint16_t inputRegisters[numInputRegisters];
 
-//Medida de vibracion del motor
-int vibration (){
-  float avgVar = vibrationSum/sampleCount;
-  vibrationSum = 0;
-  sampleCount = 0;
-  return (int)(avgVar*100/2048);
-}
-
-float gain = 10.15;     //Ganancia del amplificador del sensor de temperatura  
-
-//Medida de temperatura
-float readTemperature(){
-  int adcValue = analogRead(adcTempPin);
-  float voltaje = ((adcValue / 4095.0)) * 3.3;
-  float sensorVoltaje = voltaje / gain;
-  float temperature = sensorVoltaje * 100; // 10mV / C
-  return temperature;
+//Medicion de la velocidad objetivo mediante la posicion del potenciometro
+void velocidadRef (){
+ int pot = analogRead(potPin);
+  if (pot < potPrev-10 || pot > potPrev+10){
+    holdingRegisters[0] = pot*100/4095;
+    potPrev = pot;
+  }
 }
 
 void setup() {
   //Inicializacion de los pines
-  pinMode(adcTempPin, INPUT);
   pinMode(potPin, INPUT);
   pinMode(switchPin1, INPUT_PULLUP);
   pinMode(switchPin2, INPUT_PULLUP);
+  pinMode(encoderPin, INPUT_PULLUP);
+  pinMode(pwmPin, OUTPUT);
   pinMode(18, OUTPUT);
   digitalWrite(18, LOW); 
 
+  //Inicializacion del PWM
+  ledcSetup(0, 1000, 8);
+  ledcAttachPin(pwmPin, 0);
+
   //Inicializacion de los registros MODBUS
-  modbus.configureDiscreteInputs(discreteInputs, numDiscreteInputs);
   modbus.configureHoldingRegisters(holdingRegisters, numHoldingRegisters);
   modbus.configureInputRegisters(inputRegisters, numInputRegisters);
 
   //Lectura de los dipswitches
   int sw1 = digitalRead(switchPin1);
   int sw2 = digitalRead(switchPin2);
-
+  
   //Seleccion de Slave ID en funcion del estado de los dipswitches
   int MODBUS_UNIT_ID;
 
@@ -89,32 +86,38 @@ void setup() {
 }
 
 void loop() {
-  if (micros() - lastPotRead > 1000) {
-    vibrationSum += abs(analogRead(potPin)-2048);
-    sampleCount++;
-    lastPotRead = micros();
+  // Lectura del encoder
+  pulseRead = digitalRead(encoderPin);
+
+  if((pulseRead != pulsePrev) && (pulsePrev == 1)){
+    pulseCount++;
   }
 
+  pulsePrev = pulseRead;
+
   if (millis() - lastUpdate > 500) {
+    
+    // Calculo de la velocidad medida
+    inputRegisters[0] = (pulseCount/ppr)*60/samplingPeriod;
+    pulseCount = 0;
+    
+    // Actualizacion de la velocidad objetivo
+    velocidadRef();
 
-    //Actualizacion de valores medidos
-    inputRegisters[0] = vibration();
-    inputRegisters[1] = readTemperature(); 
+    // PID y actualizacion del ciclo de trabajo del PWM
+    int diff = holdingRegisters[0] - inputRegisters[0];
+    pwm += diff*255/100;
 
-    //Generacion de alarma de vibracion
-    if(inputRegisters[0] >= holdingRegisters[0]){
-      discreteInputs[0] = true;
-    }else{
-      discreteInputs[0] = false;
+    if(pwm > 255){
+      pwm = 255;
+    }else if(pwm < 0){
+      pwm = 0;
     }
-
-    //Generacion de alarma de temperatura
-    if(inputRegisters[1] >= holdingRegisters[1]){
-      discreteInputs[1] = true;
-    }else{
-      discreteInputs[1] = false;
+    if(holdingRegisters[0] == 0){
+      pwm = 0;
     }
-
+    // Generacion del PWM
+    ledcWrite(0, pwm);
     lastUpdate = millis();
   }
 
